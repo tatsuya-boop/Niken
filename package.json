@@ -28,6 +28,9 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "render:completed": "node scripts/render-completed.mjs",
+    "音声生成": "node scripts/voice-select.mjs",
+    "動画生成": "node scripts/render-select.mjs",
+    "動画確認": "node scripts/dev-select.mjs",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"
   },

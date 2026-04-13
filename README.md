@@ -1,5 +1,12 @@
 # Remotion video
 
+※ `音声生成` / `動画生成` / `動画確認` は **ターミナルでそのまま打つコマンドではなく**、npm scripts です。実行は必ず `npm run` を付けます:
+```bash
+npm run "音声生成"
+npm run "動画生成"
+npm run "動画確認"
+```
+
 <p align="center">
   <a href="https://github.com/remotion-dev/logo">
     <picture>
@@ -23,6 +30,21 @@ npm i
 
 ```console
 npm run dev
+```
+
+## かんたん操作（素材選択つき）
+
+エンジニア以外でも、ターミナル上で `public/materials/<user>/<property>`（`metadata.json` があるものだけ）を選んで実行できます。
+
+```bash
+# ナレーション音声を生成（Voicebox）
+npm run "音声生成"
+
+# 完成動画を生成して保存（metadata.json と同じ階層に 完成動画.mp4）
+npm run "動画生成"
+
+# Remotion Studio を起動して確認（userName / propertyName を自動注入）
+npm run "動画確認"
 ```
 
 ## Materials / Voiceover（Voicebox）
