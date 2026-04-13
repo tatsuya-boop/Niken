@@ -1,17 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring } from 'remotion';
 import { z } from 'zod';
+import { NikenAppeal } from './NikenAppeal';
+
+type UploadedVideo = {
+  id: string;
+  filename: string;
+  editOrder: number;
+  overlayText?: string | null;
+};
+
+type MetadataJson = {
+  uploadedVideos: UploadedVideo[];
+  property: {
+    name: string;
+    bgMusic: { title: string };
+  };
+};
 
 export const MargoPropsSchema = z.object({
   userName: z.string(),
   propertyName: z.string(),
-  calculatedDurations: z.array(z.number()).optional(), 
+  calculatedDurations: z.array(z.number()).optional(),
+  appealDurations: z
+    .object({
+      customer: z.number(),
+      vendor: z.number(),
+    })
+    .optional(),
 });
 
 export type MargoProps = z.infer<typeof MargoPropsSchema>;
 
-export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calculatedDurations }) => {
-  const [data, setData] = useState<any>(null);
+export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calculatedDurations, appealDurations }) => {
+  const [data, setData] = useState<MetadataJson | null>(null);
   const [handle] = useState(() => delayRender('Loading_Data'));
   const materialBase = `materials/${userName}/${propertyName}`;
 
@@ -19,36 +41,80 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     fetch(staticFile(`${materialBase}/metadata.json`))
       .then((res) => res.json())
       .then((json) => {
-        setData(json);
+        setData(json as MetadataJson);
         continueRender(handle);
       })
       .catch(() => continueRender(handle));
   }, [handle, materialBase]);
 
-  if (!data || !calculatedDurations) return null;
+  const sortedVideos = useMemo(() => {
+    if (!data) return [];
+    return [...data.uploadedVideos].sort((a, b) => a.editOrder - b.editOrder);
+  }, [data]);
 
-  const bgmPath = staticFile(`materials/bgMusics/${data.property.bgMusic.title}.mp3`);
-  const sortedVideos = [...data.uploadedVideos].sort((a, b) => a.editOrder - b.editOrder);
+  const bgmPath = data ? staticFile(`materials/bgMusics/${data.property.bgMusic.title}.mp3`) : null;
+  const propertyTitle = data?.property.name ?? '';
+
+  const sequences = useMemo(() => {
+    const items: Array<
+      | { type: 'video'; id: string; durationInFrames: number; video: UploadedVideo }
+      | { type: 'appeal'; id: 'customer' | 'vendor'; durationInFrames: number }
+    > = [];
+
+    if (!calculatedDurations || !appealDurations) return items;
+
+    if (sortedVideos.length === 0) {
+      items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
+      items.push({ type: 'appeal', id: 'vendor', durationInFrames: appealDurations.vendor });
+      return items;
+    }
+
+    items.push({ type: 'video', id: sortedVideos[0].id, durationInFrames: calculatedDurations[0], video: sortedVideos[0] });
+    items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
+
+    for (let i = 1; i < sortedVideos.length; i++) {
+      items.push({ type: 'video', id: sortedVideos[i].id, durationInFrames: calculatedDurations[i], video: sortedVideos[i] });
+    }
+
+    items.push({ type: 'appeal', id: 'vendor', durationInFrames: appealDurations.vendor });
+    return items;
+  }, [appealDurations, calculatedDurations, sortedVideos]);
+
+  if (!data || !calculatedDurations || !appealDurations || !bgmPath) return null;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       <Audio src={bgmPath} volume={0.15} loop />
       <Series>
-        {sortedVideos.map((video, index) => (
-          <Series.Sequence key={video.id} durationInFrames={calculatedDurations[index]}>
-            <Scene video={video} materialBase={materialBase} />
-          </Series.Sequence>
-        ))}
+        {sequences.map((seq) => {
+          if (seq.type === 'video') {
+            return (
+              <Series.Sequence key={`video-${seq.id}`} durationInFrames={seq.durationInFrames}>
+                <Scene video={seq.video} materialBase={materialBase} propertyTitle={propertyTitle} />
+              </Series.Sequence>
+            );
+          }
+
+          const isCustomer = seq.id === 'customer';
+          return (
+            <Series.Sequence key={`appeal-${seq.id}`} durationInFrames={seq.durationInFrames}>
+              <NikenAppeal
+                variant={seq.id}
+                text={
+                  isCustomer
+                    ? '動画で探す、新しいお部屋探し\n不動産ポータルサイトNiken'
+                    : '“見られる物件”に変える\n動画作成無料代行 × 掲載無料 \n不動産ポータルサイトNiken'
+                }
+              />
+            </Series.Sequence>
+          );
+        })}
       </Series>
-      {/* 物件名表示 */}
-      <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '15px 40px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', zIndex: 100 }}>
-        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em' }}>{data.property.name}</div>
-      </div>
     </AbsoluteFill>
   );
 };
 
-const Scene: React.FC<{ video: any; materialBase: string }> = ({ video, materialBase }) => {
+const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyTitle: string }> = ({ video, materialBase, propertyTitle }) => {
   const [audioExists, setAudioExists] = useState(false);
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -77,6 +143,10 @@ const Scene: React.FC<{ video: any; materialBase: string }> = ({ video, material
           })}
         </div>
       )}
+      {/* 物件名表示 */}
+      <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '15px 40px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', zIndex: 100 }}>
+        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em' }}>{propertyTitle}</div>
+      </div>
     </AbsoluteFill>
   );
 };
