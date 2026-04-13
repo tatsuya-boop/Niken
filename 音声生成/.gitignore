@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+._*
+.env
+
+完成動画/
+生成音声/
