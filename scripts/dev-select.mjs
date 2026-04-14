@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pickMaterial } from './material-picker.mjs';
@@ -19,12 +21,19 @@ const main = async () => {
     process.platform === 'win32' ? 'remotion.cmd' : 'remotion'
   );
   const entryPoint = path.resolve(process.cwd(), 'src', 'index.ts');
-  const inputProps = JSON.stringify({
+  const inputProps = {
     userName: picked.userName,
     propertyName: picked.propertyName,
-  });
+  };
 
-  const result = spawnSync(remotionBin, ['studio', entryPoint, `--props=${inputProps}`], {
+  // Pass props via file to avoid Windows quoting issues.
+  const propsPath = path.join(
+    os.tmpdir(),
+    `margo-remotion-props.${process.pid}.${Date.now()}.json`
+  );
+  fs.writeFileSync(propsPath, JSON.stringify(inputProps), 'utf8');
+
+  const result = spawnSync(remotionBin, ['studio', entryPoint, `--props=${propsPath}`], {
     stdio: 'inherit',
     // On Windows, `.cmd` files can fail to spawn depending on environment.
     // Running through the shell makes execution more reliable.
