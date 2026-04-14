@@ -51,24 +51,42 @@ npm run "動画確認"
 
 `public/materials/<user>/<property>/metadata.json` の `uploadedVideos[].voiceoverText` から、Voicebox でナレーション音声を生成して素材フォルダに保存できます。
 
+※ いちばん簡単なのは `npm run "音声生成"` です（OSに応じて Python コマンドを自動で選びます）。
+
 前提:
 - Voicebox アプリ（API）が起動していること（既定: `http://127.0.0.1:17493`）
-- `python3` が使えること
+- Python が使えること（Mac/Linux: `python3`、Windows: `py` または `python`）
 
 生成（プロジェクトルートで実行推奨）:
 ```bash
+# Mac/Linux
 python3 "音声生成/generate_voiceovers_from_metadata.py"
+
+# Windows（どちらか）
+py -3 "音声生成/generate_voiceovers_from_metadata.py"
+# または
+python "音声生成/generate_voiceovers_from_metadata.py"
 ```
 
 `metadata.json` を直接指定することもできます:
 ```bash
+# Mac/Linux
 python3 "音声生成/generate_voiceovers_from_metadata.py" \
+  public/materials/tanakatatsuya/SPCourtMejiro401/metadata.json
+
+# Windows（例: py -3）
+py -3 "音声生成/generate_voiceovers_from_metadata.py" ^
   public/materials/tanakatatsuya/SPCourtMejiro401/metadata.json
 ```
 
 短縮指定（`materials` 以降の深さが同じ前提）:
 ```bash
+# Mac/Linux
 python3 "音声生成/generate_voiceovers_from_metadata.py" \
+  tanakatatsuya/SPCourtMejiro401
+
+# Windows（例: py -3）
+py -3 "音声生成/generate_voiceovers_from_metadata.py" ^
   tanakatatsuya/SPCourtMejiro401
 ```
 
