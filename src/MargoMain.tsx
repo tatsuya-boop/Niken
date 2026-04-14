@@ -72,9 +72,9 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     data?.property.propertyNumber ??
     data?.property.propertyNo ??
     data?.property.code;
-  const propertyNumber = propertyNumberRaw == null ? '' : String(propertyNumberRaw);
+  const propertyNumber = propertyNumberRaw == null ? '' : String(propertyNumberRaw).trim().padStart(4, '0');
   const propertyLabel = propertyNumber
-    ? `${propertyTitle}  物件番号:${propertyNumber}`
+    ? `${propertyTitle}\n物件番号:${propertyNumber}`
     : propertyTitle;
 
   const sequences = useMemo(() => {
@@ -201,7 +201,7 @@ const Scene: React.FC<{
       )}
       {/* 物件名表示 */}
       <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '15px 40px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', zIndex: 100 }}>
-        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em' }}>{propertyLabel}</div>
+        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em', whiteSpace: 'pre-line', textAlign: 'center' }}>{propertyLabel}</div>
       </div>
     </AbsoluteFill>
   );
