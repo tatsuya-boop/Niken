@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -82,20 +83,46 @@ const remotionBin = path.resolve(
 
 const entryPoint = path.resolve(projectRoot, 'src', 'index.ts');
 const compositionId = process.env.MARGO_COMPOSITION_ID ?? 'SPCourtMejiro401';
-const inputProps = JSON.stringify({ userName, propertyName });
+const inputProps = { userName, propertyName };
 
-const result = spawnSync(
-  remotionBin,
-  [
-    'render',
-    entryPoint,
-    compositionId,
-    outputPath,
-    `--props=${inputProps}`,
-    '--overwrite',
-  ],
-  { stdio: 'inherit' }
+// Pass props via file to avoid Windows quoting issues.
+const propsPath = path.join(
+  os.tmpdir(),
+  `margo-remotion-props.${process.pid}.${Date.now()}.json`
 );
+fs.writeFileSync(propsPath, JSON.stringify(inputProps), 'utf8');
 
+const result = (() => {
+  try {
+    return spawnSync(
+      remotionBin,
+      [
+        'render',
+        entryPoint,
+        compositionId,
+        outputPath,
+        `--props=${propsPath}`,
+        '--overwrite',
+      ],
+      {
+        stdio: 'inherit',
+        // On Windows, `.cmd` files can fail to spawn depending on environment.
+        // Running through the shell makes execution more reliable.
+        shell: process.platform === 'win32',
+      }
+    );
+  } finally {
+    try {
+      fs.unlinkSync(propsPath);
+    } catch {
+      // no-op
+    }
+  }
+})();
+
+if (result.error) {
+  console.error(result.error);
+  process.exit(1);
+}
 process.exit(result.status ?? 1);
 
