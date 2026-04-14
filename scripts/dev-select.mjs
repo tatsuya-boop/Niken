@@ -26,8 +26,15 @@ const main = async () => {
 
   const result = spawnSync(remotionBin, ['studio', entryPoint, `--props=${inputProps}`], {
     stdio: 'inherit',
+    // On Windows, `.cmd` files can fail to spawn depending on environment.
+    // Running through the shell makes execution more reliable.
+    shell: process.platform === 'win32',
   });
 
+  if (result.error) {
+    console.error(result.error);
+    process.exit(1);
+  }
   process.exit(result.status ?? 1);
 };
 
