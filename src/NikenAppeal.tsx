@@ -5,24 +5,41 @@ export const NikenAppeal: React.FC<{
   text: string;
 }> = ({ variant, text }) => {
   const logo = staticFile('NikenLogo.png');
+  const bgPic = staticFile('訴求bgPic.jpeg');
   const audioSrc = variant === 'customer' ? staticFile('顧客訴求音声.wav') : staticFile('業者訴求音声.wav');
 
   return (
     <AbsoluteFill>
       <Audio src={audioSrc} volume={1} />
+      <AbsoluteFill>
+        <Img
+          src={bgPic}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            filter: 'blur(22px)',
+            transform: 'scale(1.06)',
+            opacity: 0.85,
+          }}
+        />
+      </AbsoluteFill>
       <AbsoluteFill
         style={{
           background:
             variant === 'customer'
               ? 'radial-gradient(1100px 1100px at 15% 15%, rgba(110, 231, 255, 0.75), rgba(255,255,255,0) 55%), radial-gradient(900px 900px at 85% 75%, rgba(255, 180, 230, 0.55), rgba(255,255,255,0) 60%), linear-gradient(180deg, #f7fbff 0%, #eef5ff 60%, #ffffff 100%)'
               : 'radial-gradient(1100px 1100px at 15% 15%, rgba(255, 214, 140, 0.75), rgba(255,255,255,0) 55%), radial-gradient(900px 900px at 85% 75%, rgba(150, 255, 210, 0.55), rgba(255,255,255,0) 60%), linear-gradient(180deg, #fbfffb 0%, #f2fff8 60%, #ffffff 100%)',
+          opacity: 0.38,
+          mixBlendMode: 'soft-light',
         }}
       />
       <AbsoluteFill
         style={{
           backgroundImage:
             'radial-gradient(circle at 10% 10%, rgba(255,255,255,0.7) 0, rgba(255,255,255,0) 35%), radial-gradient(circle at 90% 80%, rgba(255,255,255,0.55) 0, rgba(255,255,255,0) 40%)',
-          opacity: 0.65,
+          opacity: 0.35,
+          mixBlendMode: 'overlay',
         }}
       />
 
@@ -35,7 +52,7 @@ export const NikenAppeal: React.FC<{
       >
         <div
           style={{
-            width: 820,
+            width: 940,
             borderRadius: 36,
             padding: '70px 64px 64px',
             backgroundColor: 'rgba(255,255,255,0.72)',
@@ -49,7 +66,7 @@ export const NikenAppeal: React.FC<{
             gap: 34,
           }}
         >
-          <Img src={logo} style={{ width: 320, height: 320, objectFit: 'contain' }} />
+          <Img src={logo} style={{ width: 520, height: 520, objectFit: 'contain' }} />
 
           <div
             style={{

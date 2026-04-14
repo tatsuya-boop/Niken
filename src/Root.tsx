@@ -14,6 +14,13 @@ type MetadataJson = {
   uploadedVideos: UploadedVideo[];
 };
 
+type ClipDurations = {
+  video: number;
+  audio: number;
+  videoStart: number;
+  audioStart: number;
+};
+
 const getAppealDurationInFrames = async (src: string) => {
   try {
     const audio = await getAudioData(src);
@@ -33,7 +40,7 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
 
   const sorted = [...json.uploadedVideos].sort((a, b) => a.editOrder - b.editOrder);
 
-  const durations = await Promise.all(
+  const clipBasics = await Promise.all(
     sorted.map(async (v) => {
       const videoUrl = staticFile(`${materialBase}/${v.filename}`);
       const audioUrl = staticFile(`${materialBase}/voiceovers/voiceover-${v.id}.wav`);
@@ -56,16 +63,53 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
         }
       } catch { aDur = 0; }
 
-      // 音声がなくても動画の長さで計算される
-      return Math.ceil(Math.max(vDur, aDur) * FPS);
+      const videoFrames = Math.max(1, Math.ceil(vDur * FPS));
+      const audioFrames = Math.max(0, Math.ceil(aDur * FPS));
+
+      return {
+        video: videoFrames,
+        audio: audioFrames,
+      };
     })
   );
 
   const customerAppeal = await getAppealDurationInFrames(staticFile('顧客訴求音声.wav'));
   const vendorAppeal = await getAppealDurationInFrames(staticFile('業者訴求音声.wav'));
 
+  // 映像タイムライン（動画は即次へ）上での開始位置を確定
+  const videoStarts: number[] = [];
+  let cursor = 0;
+  if (sorted.length === 0) {
+    cursor = customerAppeal + vendorAppeal;
+  } else {
+    for (let i = 0; i < sorted.length; i++) {
+      videoStarts[i] = cursor;
+      cursor += clipBasics[i].video;
+      if (i === 0) {
+        cursor += customerAppeal; // 1本目のあとに顧客訴求
+      }
+    }
+    cursor += vendorAppeal; // 最後に業者訴求
+  }
+  const timelineEnd = cursor;
+
+  // 音声は「前の音声が終わってから」開始（ただし動画開始より前にはしない）
+  const audioStarts: number[] = [];
+  let prevAudioEnd = 0;
+  for (let i = 0; i < clipBasics.length; i++) {
+    const start = Math.max(videoStarts[i] ?? 0, prevAudioEnd);
+    audioStarts[i] = start;
+    prevAudioEnd = start + clipBasics[i].audio;
+  }
+
+  const durations: ClipDurations[] = clipBasics.map((b, i) => ({
+    ...b,
+    videoStart: videoStarts[i] ?? 0,
+    audioStart: audioStarts[i] ?? 0,
+  }));
+
   return { 
-    durationInFrames: durations.reduce((a, b) => a + b, 0) + customerAppeal + vendorAppeal,
+    durationInFrames: Math.max(timelineEnd, prevAudioEnd),
     props: { 
       ...props,
       calculatedDurations: durations,

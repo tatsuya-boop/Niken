@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring } from 'remotion';
+import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring, Sequence } from 'remotion';
 import { z } from 'zod';
 import { NikenAppeal } from './NikenAppeal';
 
@@ -21,7 +21,16 @@ type MetadataJson = {
 export const MargoPropsSchema = z.object({
   userName: z.string(),
   propertyName: z.string(),
-  calculatedDurations: z.array(z.number()).optional(),
+  calculatedDurations: z
+    .array(
+      z.object({
+        video: z.number(),
+        audio: z.number(),
+        videoStart: z.number(),
+        audioStart: z.number(),
+      })
+    )
+    .optional(),
   appealDurations: z
     .object({
       customer: z.number(),
@@ -57,7 +66,13 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
 
   const sequences = useMemo(() => {
     const items: Array<
-      | { type: 'video'; id: string; durationInFrames: number; video: UploadedVideo }
+      | {
+          type: 'video';
+          id: string;
+          durationInFrames: number;
+          videoDurationInFrames: number;
+          video: UploadedVideo;
+        }
       | { type: 'appeal'; id: 'customer' | 'vendor'; durationInFrames: number }
     > = [];
 
@@ -69,11 +84,23 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
       return items;
     }
 
-    items.push({ type: 'video', id: sortedVideos[0].id, durationInFrames: calculatedDurations[0], video: sortedVideos[0] });
+    items.push({
+      type: 'video',
+      id: sortedVideos[0].id,
+      durationInFrames: calculatedDurations[0].video,
+      videoDurationInFrames: calculatedDurations[0].video,
+      video: sortedVideos[0],
+    });
     items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
 
     for (let i = 1; i < sortedVideos.length; i++) {
-      items.push({ type: 'video', id: sortedVideos[i].id, durationInFrames: calculatedDurations[i], video: sortedVideos[i] });
+      items.push({
+        type: 'video',
+        id: sortedVideos[i].id,
+        durationInFrames: calculatedDurations[i].video,
+        videoDurationInFrames: calculatedDurations[i].video,
+        video: sortedVideos[i],
+      });
     }
 
     items.push({ type: 'appeal', id: 'vendor', durationInFrames: appealDurations.vendor });
@@ -85,12 +112,27 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       <Audio src={bgmPath} volume={0.15} loop />
+      {sortedVideos.map((v, i) => {
+        const d = calculatedDurations[i];
+        if (!d || d.audio <= 0) return null;
+        const voUrl = staticFile(`${materialBase}/voiceovers/voiceover-${v.id}.wav`);
+        return (
+          <Sequence key={`vo-${v.id}`} from={d.audioStart} durationInFrames={d.audio}>
+            <Audio src={voUrl} volume={1} />
+          </Sequence>
+        );
+      })}
       <Series>
         {sequences.map((seq) => {
           if (seq.type === 'video') {
             return (
               <Series.Sequence key={`video-${seq.id}`} durationInFrames={seq.durationInFrames}>
-                <Scene video={seq.video} materialBase={materialBase} propertyTitle={propertyTitle} />
+                <Scene
+                  video={seq.video}
+                  materialBase={materialBase}
+                  propertyTitle={propertyTitle}
+                  videoDurationInFrames={seq.videoDurationInFrames}
+                />
               </Series.Sequence>
             );
           }
@@ -114,22 +156,23 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
   );
 };
 
-const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyTitle: string }> = ({ video, materialBase, propertyTitle }) => {
-  const [audioExists, setAudioExists] = useState(false);
+const Scene: React.FC<{
+  video: UploadedVideo;
+  materialBase: string;
+  propertyTitle: string;
+  videoDurationInFrames: number;
+}> = ({ video, materialBase, propertyTitle, videoDurationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const voUrl = staticFile(`${materialBase}/voiceovers/voiceover-${video.id}.wav`);
-
-  useEffect(() => {
-    fetch(voUrl, { method: 'HEAD' })
-      .then((res) => setAudioExists(res.ok))
-      .catch(() => setAudioExists(false));
-  }, [voUrl]);
 
   return (
     <AbsoluteFill>
-      {audioExists && <Audio src={voUrl} volume={1} />}
-      <OffthreadVideo src={staticFile(`${materialBase}/${video.filename}`)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <OffthreadVideo
+        src={staticFile(`${materialBase}/${video.filename}`)}
+        muted
+        trimAfter={Math.max(0, videoDurationInFrames - 1)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
       {video.overlayText && (
         <div style={{ position: 'absolute', top: 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', padding: '0 50px' }}>
           {video.overlayText.toUpperCase().split('').map((char: string, i: number) => {
