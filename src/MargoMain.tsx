@@ -120,6 +120,16 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     return items;
   }, [appealDurations, calculatedDurations, sortedVideos]);
 
+  const voiceoverStarts = useMemo(() => {
+    // Safety net: serialize voiceovers so they never overlap.
+    let prevAudioEnd = 0;
+    return calculatedDurations?.map((d) => {
+      const start = Math.max(d.videoStart, prevAudioEnd);
+      prevAudioEnd = start + d.audio;
+      return start;
+    }) ?? [];
+  }, [calculatedDurations]);
+
   if (!data || !calculatedDurations || !appealDurations || !bgmPath) return null;
 
   return (
@@ -130,7 +140,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
         if (!d || d.audio <= 0) return null;
         const voUrl = staticFile(`${materialBase}/voiceovers/voiceover-${v.id}.wav`);
         return (
-          <Sequence key={`vo-${v.id}`} from={d.audioStart} durationInFrames={d.audio}>
+          <Sequence key={`vo-${v.id}`} from={voiceoverStarts[i] ?? d.audioStart} durationInFrames={d.audio}>
             <Audio src={voUrl} volume={1} />
           </Sequence>
         );
