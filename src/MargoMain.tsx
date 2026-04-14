@@ -14,6 +14,10 @@ type MetadataJson = {
   uploadedVideos: UploadedVideo[];
   property: {
     name: string;
+    number?: string | number;
+    propertyNumber?: string | number;
+    propertyNo?: string | number;
+    code?: string | number;
     bgMusic: { title: string };
   };
 };
@@ -63,6 +67,15 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
 
   const bgmPath = data ? staticFile(`materials/bgMusics/${data.property.bgMusic.title}.mp3`) : null;
   const propertyTitle = data?.property.name ?? '';
+  const propertyNumberRaw =
+    data?.property.number ??
+    data?.property.propertyNumber ??
+    data?.property.propertyNo ??
+    data?.property.code;
+  const propertyNumber = propertyNumberRaw == null ? '' : String(propertyNumberRaw);
+  const propertyLabel = propertyNumber
+    ? `${propertyTitle}  物件番号:${propertyNumber}`
+    : propertyTitle;
 
   const sequences = useMemo(() => {
     const items: Array<
@@ -130,7 +143,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
                 <Scene
                   video={seq.video}
                   materialBase={materialBase}
-                  propertyTitle={propertyTitle}
+                  propertyLabel={propertyLabel}
                   videoDurationInFrames={seq.videoDurationInFrames}
                 />
               </Series.Sequence>
@@ -159,9 +172,9 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
 const Scene: React.FC<{
   video: UploadedVideo;
   materialBase: string;
-  propertyTitle: string;
+  propertyLabel: string;
   videoDurationInFrames: number;
-}> = ({ video, materialBase, propertyTitle, videoDurationInFrames }) => {
+}> = ({ video, materialBase, propertyLabel, videoDurationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -188,7 +201,7 @@ const Scene: React.FC<{
       )}
       {/* 物件名表示 */}
       <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '15px 40px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', zIndex: 100 }}>
-        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em' }}>{propertyTitle}</div>
+        <div style={{ color: 'white', fontSize: 40, fontWeight: 300, letterSpacing: '0.2em' }}>{propertyLabel}</div>
       </div>
     </AbsoluteFill>
   );
