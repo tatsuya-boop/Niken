@@ -183,7 +183,8 @@ const Scene: React.FC<{
       <OffthreadVideo
         src={staticFile(`${materialBase}/${video.filename}`)}
         muted
-        trimAfter={Math.max(0, videoDurationInFrames - 1)}
+        // `trimAfter` is exclusive; subtracting 1 caused a 1-frame black gap at cuts.
+        trimAfter={Math.max(1, videoDurationInFrames)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
       {video.overlayText && (
