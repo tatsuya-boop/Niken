@@ -147,7 +147,7 @@ const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyLabe
         </Sequence>
       )}
       {video.overlayText && (
-        <div style={{ position: 'absolute', top: 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px' }}>
+        <div style={{ position: 'absolute', top: 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px', flexWrap: 'wrap' }}>
           {isFirstScene ? (
             (() => {
               const spr = spring({ frame, fps, config: { stiffness: 180, damping: 12, mass: 1.2 } });
@@ -205,9 +205,22 @@ const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyLabe
           ) : (
             video.overlayText.toUpperCase().split('').map((char, i) => {
               const spr = spring({ frame, fps, config: { stiffness: 100, damping: 15 }, delay: i * 2 });
+              const commonCharStyle: React.CSSProperties = {
+                color: 'white',
+                fontSize: 100,
+                fontWeight: 900,
+                display: 'inline-block',
+                opacity: spr,
+                transform: `translateY(${interpolate(spr, [0, 1], [50, 0])}px)`,
+              };
+
+              if (char === '\n') {
+                return <div key={i} style={{ width: '100%', height: 0 }} />;
+              }
+
               return (
-                <span key={i} style={{ color: 'white', fontSize: 100, fontWeight: 900, display: 'inline-block', opacity: spr, transform: `translateY(${interpolate(spr, [0, 1], [50, 0])}px)`, whiteSpace: char === ' ' ? 'pre' : 'normal' }}>
-                  {char === '\n' ? <div style={{ width: '100%' }} /> : (char === ' ' ? '\u00A0' : char)}
+                <span key={i} style={commonCharStyle}>
+                  {char === ' ' ? '\u00A0' : char}
                 </span>
               );
             })
