@@ -17,14 +17,33 @@ type MetadataJson = {
 type ClipDurations = {
   video: number;
   audio: number;
+  timeline: number;
   videoStart: number;
   audioStart: number;
+};
+
+const existsInPublic = async (src: string, abortSignal: AbortSignal) => {
+  try {
+    const res = await fetch(staticFile(src), { method: 'HEAD', signal: abortSignal });
+    return res.ok;
+  } catch {
+    return false;
+  }
 };
 
 const getAppealDurationInFrames = async (src: string) => {
   try {
     const audio = await getAudioData(src);
     return Math.max(1, Math.ceil(audio.durationInSeconds * FPS));
+  } catch {
+    return 5 * FPS;
+  }
+};
+
+const getVideoDurationInFrames = async (src: string) => {
+  try {
+    const vMeta = await getVideoMetadata(src);
+    return Math.max(1, Math.ceil(vMeta.durationInSeconds * FPS));
   } catch {
     return 5 * FPS;
   }
@@ -69,12 +88,21 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
       return {
         video: videoFrames,
         audio: audioFrames,
+        timeline: Math.max(videoFrames, audioFrames),
       };
     })
   );
 
-  const customerAppeal = await getAppealDurationInFrames(staticFile('顧客訴求音声.wav'));
-  const vendorAppeal = await getAppealDurationInFrames(staticFile('業者訴求音声.wav'));
+  const customerAppealMp4Exists = await existsInPublic('顧客訴求動画.mp4', abortSignal);
+  const vendorAppealMp4Exists = await existsInPublic('業者訴求動画.mp4', abortSignal);
+
+  const customerAppeal = customerAppealMp4Exists
+    ? await getVideoDurationInFrames(staticFile('顧客訴求動画.mp4'))
+    : await getAppealDurationInFrames(staticFile('顧客訴求音声.wav'));
+
+  const vendorAppeal = vendorAppealMp4Exists
+    ? await getVideoDurationInFrames(staticFile('業者訴求動画.mp4'))
+    : await getAppealDurationInFrames(staticFile('業者訴求音声.wav'));
 
   // 映像タイムライン（動画は即次へ）上での開始位置を確定
   const videoStarts: number[] = [];
@@ -84,7 +112,7 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
   } else {
     for (let i = 0; i < sorted.length; i++) {
       videoStarts[i] = cursor;
-      cursor += clipBasics[i].video;
+      cursor += clipBasics[i].timeline;
       if (i === 0) {
         cursor += customerAppeal; // 1本目のあとに顧客訴求
       }
@@ -114,6 +142,10 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
       ...props,
       calculatedDurations: durations,
       appealDurations: { customer: customerAppeal, vendor: vendorAppeal },
+      appealVideoSrcs: {
+        customer: customerAppealMp4Exists ? '顧客訴求動画.mp4' : undefined,
+        vendor: vendorAppealMp4Exists ? '業者訴求動画.mp4' : undefined,
+      },
     } 
   };
 };

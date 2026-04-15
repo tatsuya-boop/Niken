@@ -3,5 +3,7 @@ dist
 .DS_Store
 .env
 /public/materials/tanakatatsuya/
+/public/業者訴求動画.mp4
+/public/顧客訴求動画.mp4
 # Ignore the output video from Git but not videos you import into src/.
 out

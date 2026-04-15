@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring, Sequence } from 'remotion';
+import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring, Sequence, Freeze } from 'remotion';
 import { z } from 'zod';
 import { NikenAppeal } from './NikenAppeal';
 
@@ -30,6 +30,7 @@ export const MargoPropsSchema = z.object({
       z.object({
         video: z.number(),
         audio: z.number(),
+        timeline: z.number(),
         videoStart: z.number(),
         audioStart: z.number(),
       })
@@ -41,11 +42,17 @@ export const MargoPropsSchema = z.object({
       vendor: z.number(),
     })
     .optional(),
+  appealVideoSrcs: z
+    .object({
+      customer: z.string().optional(),
+      vendor: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type MargoProps = z.infer<typeof MargoPropsSchema>;
 
-export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calculatedDurations, appealDurations }) => {
+export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calculatedDurations, appealDurations, appealVideoSrcs }) => {
   const [data, setData] = useState<MetadataJson | null>(null);
   const [handle] = useState(() => delayRender('Loading_Data'));
   const materialBase = `materials/${userName}/${propertyName}`;
@@ -100,7 +107,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     items.push({
       type: 'video',
       id: sortedVideos[0].id,
-      durationInFrames: calculatedDurations[0].video,
+        durationInFrames: calculatedDurations[0].timeline,
       videoDurationInFrames: calculatedDurations[0].video,
       video: sortedVideos[0],
     });
@@ -110,7 +117,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
       items.push({
         type: 'video',
         id: sortedVideos[i].id,
-        durationInFrames: calculatedDurations[i].video,
+        durationInFrames: calculatedDurations[i].timeline,
         videoDurationInFrames: calculatedDurations[i].video,
         video: sortedVideos[i],
       });
@@ -130,11 +137,35 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     }) ?? [];
   }, [calculatedDurations]);
 
+  const appealMp4Intervals = useMemo(() => {
+    let from = 0;
+    const intervals: Array<{ from: number; to: number }> = [];
+    for (const seq of sequences) {
+      if (seq.type === 'appeal') {
+        const src = seq.id === 'customer' ? appealVideoSrcs?.customer : appealVideoSrcs?.vendor;
+        if (src) {
+          intervals.push({ from, to: from + seq.durationInFrames });
+        }
+      }
+      from += seq.durationInFrames;
+    }
+    return intervals;
+  }, [appealVideoSrcs?.customer, appealVideoSrcs?.vendor, sequences]);
+
+  const frame = useCurrentFrame();
+  const bgmVolume = useMemo(() => {
+    const base = 0.15;
+    for (const itv of appealMp4Intervals) {
+      if (frame >= itv.from && frame < itv.to) return 0;
+    }
+    return base;
+  }, [appealMp4Intervals, frame]);
+
   if (!data || !calculatedDurations || !appealDurations || !bgmPath) return null;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
-      <Audio src={bgmPath} volume={0.15} loop />
+      <Audio src={bgmPath} volume={bgmVolume} loop />
       {sortedVideos.map((v, i) => {
         const d = calculatedDurations[i];
         if (!d || d.audio <= 0) return null;
@@ -154,6 +185,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
                   video={seq.video}
                   materialBase={materialBase}
                   propertyLabel={propertyLabel}
+                  durationInFrames={seq.durationInFrames}
                   videoDurationInFrames={seq.videoDurationInFrames}
                 />
               </Series.Sequence>
@@ -161,6 +193,21 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
           }
 
           const isCustomer = seq.id === 'customer';
+          const appealVideoSrc = isCustomer ? appealVideoSrcs?.customer : appealVideoSrcs?.vendor;
+          if (appealVideoSrc) {
+            return (
+              <Series.Sequence key={`appeal-mp4-${seq.id}`} durationInFrames={seq.durationInFrames}>
+                <AbsoluteFill>
+                  <OffthreadVideo
+                    src={staticFile(appealVideoSrc)}
+                    // 音声は mp4 側のみを使う（BGM は上で同区間ミュート）
+                    muted={false}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </AbsoluteFill>
+              </Series.Sequence>
+            );
+          }
           return (
             <Series.Sequence key={`appeal-${seq.id}`} durationInFrames={seq.durationInFrames}>
               <NikenAppeal
@@ -183,20 +230,36 @@ const Scene: React.FC<{
   video: UploadedVideo;
   materialBase: string;
   propertyLabel: string;
+  durationInFrames: number;
   videoDurationInFrames: number;
-}> = ({ video, materialBase, propertyLabel, videoDurationInFrames }) => {
+}> = ({ video, materialBase, propertyLabel, durationInFrames, videoDurationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const holdFrames = Math.max(0, durationInFrames - videoDurationInFrames);
+  const lastVideoFrame = Math.max(0, videoDurationInFrames - 1);
+  const videoSrc = staticFile(`${materialBase}/${video.filename}`);
 
   return (
     <AbsoluteFill>
       <OffthreadVideo
-        src={staticFile(`${materialBase}/${video.filename}`)}
+        src={videoSrc}
         muted
         // `trimAfter` is exclusive; subtracting 1 caused a 1-frame black gap at cuts.
         trimAfter={Math.max(1, videoDurationInFrames)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
+      {holdFrames > 0 ? (
+        <Sequence from={videoDurationInFrames} durationInFrames={holdFrames}>
+          <Freeze frame={lastVideoFrame}>
+            <OffthreadVideo
+              src={videoSrc}
+              muted
+              trimAfter={Math.max(1, videoDurationInFrames)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </Freeze>
+        </Sequence>
+      ) : null}
       {video.overlayText && (
         <div style={{ position: 'absolute', top: 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', padding: '0 50px' }}>
           {video.overlayText.toUpperCase().split('').map((char: string, i: number) => {
