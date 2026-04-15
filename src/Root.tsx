@@ -93,15 +93,15 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
     })
   );
 
-  const customerAppealMp4Exists = await existsInPublic('顧客訴求動画.mp4', abortSignal);
-  const vendorAppealMp4Exists = await existsInPublic('業者訴求動画.mp4', abortSignal);
+  const customerAppealMp4Exists = await existsInPublic('業者訴求動画.mp4', abortSignal);
+  const vendorAppealMp4Exists = await existsInPublic('顧客訴求動画.mp4', abortSignal);
 
   const customerAppeal = customerAppealMp4Exists
-    ? await getVideoDurationInFrames(staticFile('顧客訴求動画.mp4'))
+    ? await getVideoDurationInFrames(staticFile('業者訴求動画.mp4'))
     : await getAppealDurationInFrames(staticFile('顧客訴求音声.wav'));
 
   const vendorAppeal = vendorAppealMp4Exists
-    ? await getVideoDurationInFrames(staticFile('業者訴求動画.mp4'))
+    ? await getVideoDurationInFrames(staticFile('顧客訴求動画.mp4'))
     : await getAppealDurationInFrames(staticFile('業者訴求音声.wav'));
 
   // 映像タイムライン（動画は即次へ）上での開始位置を確定
@@ -143,8 +143,8 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
       calculatedDurations: durations,
       appealDurations: { customer: customerAppeal, vendor: vendorAppeal },
       appealVideoSrcs: {
-        customer: customerAppealMp4Exists ? '顧客訴求動画.mp4' : undefined,
-        vendor: vendorAppealMp4Exists ? '業者訴求動画.mp4' : undefined,
+        customer: customerAppealMp4Exists ? '業者訴求動画.mp4' : undefined,
+        vendor: vendorAppealMp4Exists ? '顧客訴求動画.mp4' : undefined,
       },
     } 
   };

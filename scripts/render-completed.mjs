@@ -22,6 +22,28 @@ if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
   process.exit(args.length === 0 ? 1 : 0);
 }
 
+let materialInput = null;
+let effectSoundSrc = null;
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (arg.startsWith('--effect-sound=')) {
+    effectSoundSrc = arg.slice('--effect-sound='.length);
+    continue;
+  }
+  if (arg === '--effect-sound') {
+    effectSoundSrc = args[i + 1] ?? null;
+    i += 1;
+    continue;
+  }
+  if (!arg.startsWith('-') && materialInput == null) {
+    materialInput = arg;
+  }
+}
+if (!materialInput) {
+  console.error('素材指定がありません。例: tanakatatsuya/SPCourtMejiro401');
+  process.exit(1);
+}
+
 const projectRoot = process.cwd();
 const publicMaterialsDir = path.resolve(projectRoot, 'public', 'materials');
 
@@ -42,7 +64,7 @@ const resolveMetadataPath = (input) => {
   return path.resolve(publicMaterialsDir, withoutPrefix, 'metadata.json');
 };
 
-const metadataPath = resolveMetadataPath(args[0]);
+const metadataPath = resolveMetadataPath(materialInput);
 if (!fs.existsSync(metadataPath)) {
   console.error(`metadata.json が見つかりません: ${metadataPath}`);
   process.exit(1);
@@ -83,7 +105,7 @@ const remotionBin = path.resolve(
 
 const entryPoint = path.resolve(projectRoot, 'src', 'index.ts');
 const compositionId = process.env.MARGO_COMPOSITION_ID ?? 'SPCourtMejiro401';
-const inputProps = { userName, propertyName };
+const inputProps = { userName, propertyName, effectSoundSrc: effectSoundSrc ?? undefined };
 
 // Pass props via file to avoid Windows quoting issues.
 const propsPath = path.join(

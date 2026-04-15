@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pickMaterial } from './material-picker.mjs';
+import { pickEffectSound } from './effect-picker.mjs';
 
 const main = async () => {
   const picked = await pickMaterial();
@@ -13,6 +14,12 @@ const main = async () => {
   }
 
   console.log(`\n選択: ${picked.materialKey}`);
+  const pickedEffect = await pickEffectSound();
+  if (!pickedEffect) {
+    console.log('キャンセルしました。');
+    process.exit(130);
+  }
+  console.log(`効果音: ${pickedEffect.fileName}`);
 
   const remotionBin = path.resolve(
     process.cwd(),
@@ -24,6 +31,7 @@ const main = async () => {
   const inputProps = {
     userName: picked.userName,
     propertyName: picked.propertyName,
+    effectSoundSrc: pickedEffect.publicPath,
   };
 
   // Pass props via file to avoid Windows quoting issues.
