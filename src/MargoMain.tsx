@@ -137,35 +137,11 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
     }) ?? [];
   }, [calculatedDurations]);
 
-  const appealMp4Intervals = useMemo(() => {
-    let from = 0;
-    const intervals: Array<{ from: number; to: number }> = [];
-    for (const seq of sequences) {
-      if (seq.type === 'appeal') {
-        const src = seq.id === 'customer' ? appealVideoSrcs?.customer : appealVideoSrcs?.vendor;
-        if (src) {
-          intervals.push({ from, to: from + seq.durationInFrames });
-        }
-      }
-      from += seq.durationInFrames;
-    }
-    return intervals;
-  }, [appealVideoSrcs?.customer, appealVideoSrcs?.vendor, sequences]);
-
-  const frame = useCurrentFrame();
-  const bgmVolume = useMemo(() => {
-    const base = 0.15;
-    for (const itv of appealMp4Intervals) {
-      if (frame >= itv.from && frame < itv.to) return 0;
-    }
-    return base;
-  }, [appealMp4Intervals, frame]);
-
   if (!data || !calculatedDurations || !appealDurations || !bgmPath) return null;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
-      <Audio src={bgmPath} volume={bgmVolume} loop />
+      <Audio src={bgmPath} volume={0.15} loop />
       {sortedVideos.map((v, i) => {
         const d = calculatedDurations[i];
         if (!d || d.audio <= 0) return null;
@@ -200,7 +176,7 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, calcul
                 <AbsoluteFill>
                   <OffthreadVideo
                     src={staticFile(appealVideoSrc)}
-                    // 音声は mp4 側のみを使う（BGM は上で同区間ミュート）
+                    // 訴求パートは mp4 の音声を利用
                     muted={false}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
