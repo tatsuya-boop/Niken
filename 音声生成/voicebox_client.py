@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+import sys
 import threading
 import time
 import urllib.error
@@ -16,18 +17,81 @@ TASKS_ACTIVE_ENDPOINT = "/tasks/active"
 GENERATIONS_ENDPOINT = "/generations"
 
 
-def detect_data_root():
+def _candidate_data_roots():
     env = os.environ.get("VOICEBOX_DATA_ROOT")
     if env:
-        return env
+        return [env]
 
     home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, "Library", "Application Support", "sh.voicebox.app"),
-        os.path.join(home, "Library", "Application Support", "Voicebox"),
-        os.path.join(home, "Library", "Application Support", "voicebox"),
-        os.path.join(home, "Desktop", "voicebox"),
-    ]
+    candidates = []
+
+    if sys.platform == "darwin":
+        candidates.extend(
+            [
+                os.path.join(home, "Library", "Application Support", "sh.voicebox.app"),
+                os.path.join(home, "Library", "Application Support", "Voicebox"),
+                os.path.join(home, "Library", "Application Support", "voicebox"),
+                os.path.join(home, "Desktop", "voicebox"),
+            ]
+        )
+    elif os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        app_data = os.environ.get("APPDATA")
+        user_profile = os.environ.get("USERPROFILE", home)
+        for base in [local_app_data, app_data]:
+            if not base:
+                continue
+            candidates.extend(
+                [
+                    os.path.join(base, "Programs", "Voicebox"),
+                    os.path.join(base, "Voicebox"),
+                    os.path.join(base, "voicebox"),
+                    os.path.join(base, "sh.voicebox.app"),
+                ]
+            )
+        candidates.extend(
+            [
+                os.path.join(user_profile, "AppData", "Local", "Programs", "Voicebox"),
+                os.path.join(user_profile, "AppData", "Local", "Voicebox"),
+                os.path.join(user_profile, "AppData", "Roaming", "Voicebox"),
+                os.path.join(user_profile, "Desktop", "voicebox"),
+            ]
+        )
+    else:
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        if xdg_data_home:
+            candidates.extend(
+                [
+                    os.path.join(xdg_data_home, "voicebox"),
+                    os.path.join(xdg_data_home, "Voicebox"),
+                    os.path.join(xdg_data_home, "sh.voicebox.app"),
+                ]
+            )
+        candidates.extend(
+            [
+                os.path.join(home, ".local", "share", "voicebox"),
+                os.path.join(home, ".local", "share", "Voicebox"),
+                os.path.join(home, ".config", "voicebox"),
+                os.path.join(home, "Desktop", "voicebox"),
+            ]
+        )
+
+    # Keep insertion order while dropping empty and duplicate entries.
+    unique = []
+    seen = set()
+    for path in candidates:
+        if not path:
+            continue
+        norm = os.path.normpath(path)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        unique.append(path)
+    return unique
+
+
+def detect_data_root():
+    candidates = _candidate_data_roots()
     for p in candidates:
         if os.path.isdir(p):
             return p
@@ -170,7 +234,39 @@ def _voicebox_get_json(base_url, path, timeout=30):
     url = base_url + path
     with urllib.request.urlopen(url, timeout=timeout) as resp:
         body = resp.read().decode("utf-8", errors="ignore")
-    return json.loads(body)
+    if not body or not body.strip():
+        raise ValueError(f"Empty response from {url}")
+    text = body.strip()
+    if text.startswith("data:"):
+        lines = []
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload:
+                lines.append(payload)
+        if not lines:
+            raise ValueError(f"Empty SSE payload from {url}")
+        text = "\n".join(lines)
+    return json.loads(text)
+
+
+def _find_generation_in_history(base_url, gen_id, limit=100):
+    query = urllib.parse.urlencode({"limit": limit})
+    data = _voicebox_get_json(base_url, f"/history?{query}", timeout=30)
+
+    if isinstance(data, dict):
+        items = data.get("items") or data.get("history") or []
+    elif isinstance(data, list):
+        items = data
+    else:
+        items = []
+
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id")) == str(gen_id):
+            return item
+    return None
 
 
 def _resolve_audio_path_from_generation(obj):
@@ -266,9 +362,10 @@ def _wait_for_generation_local_db(data_root, gen_id, timeout_sec=300, poll_inter
 
 def _wait_for_generation_http(base_url, gen_id, timeout_sec=300, poll_interval=1.0):
     start = time.time()
+    primary_status_path = f"{GENERATE_ENDPOINT}/{gen_id}/status"
     while True:
         paths = [
-            f"{GENERATE_ENDPOINT}/{gen_id}/status",
+            primary_status_path,
             f"{GENERATIONS_ENDPOINT}/{gen_id}",
             f"/generation/{gen_id}",
         ]
@@ -281,12 +378,15 @@ def _wait_for_generation_http(base_url, gen_id, timeout_sec=300, poll_interval=1
                 break
             except urllib.error.HTTPError as e:
                 last_exc = e
-                if e.code == 404:
-                    continue
-                raise
-        if gen is None and last_exc is not None:
-            raise last_exc
-
+                continue
+            except (json.JSONDecodeError, ValueError) as e:
+                last_exc = e
+                if p == primary_status_path:
+                    # Some Voicebox builds return HTTP 200 with an empty body while
+                    # generation is still running.
+                    gen = {}
+                    break
+                continue
         if isinstance(gen, dict):
             if gen.get("error"):
                 raise RuntimeError(str(gen["error"]))
@@ -300,6 +400,9 @@ def _wait_for_generation_http(base_url, gen_id, timeout_sec=300, poll_interval=1
                 raise RuntimeError(json.dumps(gen, ensure_ascii=False))
 
             if status and str(status).lower() in {"complete", "completed", "done", "success"}:
+                history_item = _find_generation_in_history(base_url, gen_id)
+                if history_item:
+                    return history_item
                 return gen
 
         if time.time() - start > timeout_sec:
