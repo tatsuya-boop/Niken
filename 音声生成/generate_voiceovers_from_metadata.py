@@ -104,7 +104,6 @@ def _choose_qwen_model_interactive() -> tuple[str | None, str | None]:
     options = [
         ("qwen", "0.6B", "Qwen 0.6B"),
         ("qwen", "1.7B", "Qwen 1.7B"),
-        ("gemini", "3.1Flash", "Gemini 3.1 Flash"),
         (None, None, "Voiceboxデフォルト（指定しない）"),
     ]
 
@@ -157,12 +156,6 @@ def main() -> int:
         choices=["0.6b", "1.7b"],
         default=None,
         help="Qwen のモデルサイズを指定（0.6b / 1.7b）。未指定なら対話で選択",
-    )
-    parser.add_argument(
-        "--model",
-        choices=["qwen-0.6b", "qwen-1.7b", "gemini-3.1flash", "default"],
-        default=None,
-        help="モデルを明示指定（qwen-0.6b / qwen-1.7b / gemini-3.1flash / default）",
     )
     parser.add_argument(
         "--force",
@@ -232,20 +225,12 @@ def main() -> int:
 
     model_id: str | None
     model_size: str | None
-    engine: str | None = None
-    if args.model == "qwen-0.6b" or args.qwen == "0.6b":
+    if args.qwen == "0.6b":
         model_id, model_size = "qwen", "0.6B"
-    elif args.model == "qwen-1.7b" or args.qwen == "1.7b":
+    elif args.qwen == "1.7b":
         model_id, model_size = "qwen", "1.7B"
-    elif args.model == "gemini-3.1flash":
-        model_id, model_size = "gemini", "3.1Flash"
-        engine = "gemini"
-    elif args.model == "default":
-        model_id, model_size = None, None
     else:
         model_id, model_size = _choose_qwen_model_interactive()
-        if model_id == "gemini":
-            engine = "gemini"
 
     targets = []
     for v in uploaded:
@@ -270,10 +255,6 @@ def main() -> int:
         print(f"model: {model_id} {model_size}")
     else:
         print("model: (default)")
-    if engine:
-        print(f"engine: {engine}")
-        if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
-            print("⚠️  GEMINI_API_KEY / GOOGLE_API_KEY が未設定です（Voicebox 側で設定済みなら問題ありません）")
 
     ok = 0
     skipped = 0
@@ -300,7 +281,6 @@ def main() -> int:
                 base_url=args.base_url,
                 data_root=data_root,
                 language="ja",
-                engine=engine,
                 model_id=model_id,
                 model_size=model_size,
             )
