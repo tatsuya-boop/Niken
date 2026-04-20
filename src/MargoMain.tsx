@@ -26,6 +26,8 @@ export const MargoPropsSchema = z.object({
   userName: z.string(),
   propertyName: z.string(),
   effectSoundSrc: z.string().optional(),
+  bgMusicSrc: z.string().nullable().optional(),
+  appealPlacement: z.enum(['split', 'both-at-end']).optional(),
   calculatedDurations: z.array(z.object({
     video: z.number(),
     audio: z.number(),
@@ -39,7 +41,16 @@ export const MargoPropsSchema = z.object({
 
 export type MargoProps = z.infer<typeof MargoPropsSchema>;
 
-export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, effectSoundSrc, calculatedDurations, appealDurations, appealVideoSrcs }) => {
+export const MargoMain: React.FC<MargoProps> = ({
+  userName,
+  propertyName,
+  effectSoundSrc,
+  bgMusicSrc,
+  appealPlacement,
+  calculatedDurations,
+  appealDurations,
+  appealVideoSrcs,
+}) => {
   const [data, setData] = useState<MetadataJson | null>(null);
   const [handle] = useState(() => delayRender('Loading_Data'));
   const materialBase = `materials/${userName}/${propertyName}`;
@@ -61,7 +72,9 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, effect
 
   const introOffset = calculatedDurations?.[0]?.videoStart ?? 0;
   const introSfxSrc = staticFile(effectSoundSrc ?? '効果音/効果音1.WAV');
-  const bgmPath = data ? staticFile(`materials/bgMusics/${data.property.bgMusic.title}.mp3`) : null;
+  const metadataBgmPath = data ? `materials/bgMusics/${data.property.bgMusic.title}.mp3` : null;
+  const resolvedBgmSrc = bgMusicSrc ?? metadataBgmPath;
+  const bgmPath = bgMusicSrc === null || !resolvedBgmSrc ? null : staticFile(resolvedBgmSrc);
   const propertyTitle = data?.property.name ?? '';
   const propertyNumberRaw = data?.property.number ?? data?.property.propertyNumber ?? data?.property.propertyNo ?? data?.property.code;
   const propertyNumber = propertyNumberRaw == null ? '' : String(propertyNumberRaw).trim().padStart(4, '0');
@@ -72,22 +85,29 @@ export const MargoMain: React.FC<MargoProps> = ({ userName, propertyName, effect
     if (!calculatedDurations || !appealDurations || sortedVideos.length === 0) return items;
 
     items.push({ type: 'video', id: sortedVideos[0].id, durationInFrames: calculatedDurations[0].timeline, videoDurationInFrames: calculatedDurations[0].video, video: sortedVideos[0] });
-    items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
+    if (appealPlacement !== 'both-at-end') {
+      items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
+    }
     for (let i = 1; i < sortedVideos.length; i++) {
       items.push({ type: 'video', id: sortedVideos[i].id, durationInFrames: calculatedDurations[i].timeline, videoDurationInFrames: calculatedDurations[i].video, video: sortedVideos[i] });
     }
+    if (appealPlacement === 'both-at-end') {
+      items.push({ type: 'appeal', id: 'customer', durationInFrames: appealDurations.customer });
+    }
     items.push({ type: 'appeal', id: 'vendor', durationInFrames: appealDurations.vendor });
     return items;
-  }, [appealDurations, calculatedDurations, sortedVideos]);
+  }, [appealDurations, appealPlacement, calculatedDurations, sortedVideos]);
 
-  if (!data || !calculatedDurations || !appealDurations || !bgmPath) return null;
+  if (!data || !calculatedDurations || !appealDurations) return null;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       <Audio src={introSfxSrc} volume={0.4} />
-      <Sequence from={introOffset}>
-        <Audio src={bgmPath} volume={0.15} loop />
-      </Sequence>
+      {bgmPath && (
+        <Sequence from={introOffset}>
+          <Audio src={bgmPath} volume={0.15} loop />
+        </Sequence>
+      )}
       {sortedVideos.map((v, i) => {
         const d = calculatedDurations[i];
         if (!d || d.audio <= 0) return null;
@@ -147,7 +167,7 @@ const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyLabe
         </Sequence>
       )}
       {video.overlayText && (
-        <div style={{ position: 'absolute', top: 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'absolute', top: isFirstScene ? 400 : 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px', flexWrap: 'wrap' }}>
           {isFirstScene ? (
             (() => {
               const spr = spring({ frame, fps, config: { stiffness: 180, damping: 12, mass: 1.2 } });

@@ -5,7 +5,7 @@ import { pickMaterial } from './material-picker.mjs';
 import { pickEffectSound } from './effect-picker.mjs';
 
 const main = async () => {
-  const picked = await pickMaterial();
+  const picked = await pickMaterial({ includeVideoOptions: true });
   if (!picked) {
     console.log('キャンセルしました。');
     process.exit(130);
@@ -22,9 +22,19 @@ const main = async () => {
   const nodeBin = process.execPath;
   const scriptPath = path.resolve(process.cwd(), 'scripts', 'render-completed.mjs');
 
-  const result = spawnSync(nodeBin, [scriptPath, picked.materialKey, `--effect-sound=${pickedEffect.publicPath}`], {
-    stdio: 'inherit',
-  });
+  const args = [
+    scriptPath,
+    picked.materialKey,
+    `--effect-sound=${pickedEffect.publicPath}`,
+    `--appeal-placement=${picked.appealPlacement}`,
+  ];
+  if (picked.bgMusicSrc === null) {
+    args.push('--no-bgm');
+  } else if (picked.bgMusicSrc) {
+    args.push(`--bgm=${picked.bgMusicSrc}`);
+  }
+
+  const result = spawnSync(nodeBin, args, { stdio: 'inherit' });
 
   process.exit(result.status ?? 1);
 };
@@ -33,4 +43,3 @@ main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });
-

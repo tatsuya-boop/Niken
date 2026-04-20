@@ -24,6 +24,8 @@ if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
 
 let materialInput = null;
 let effectSoundSrc = null;
+let bgMusicSrc;
+let appealPlacement;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   if (arg.startsWith('--effect-sound=')) {
@@ -32,6 +34,28 @@ for (let i = 0; i < args.length; i++) {
   }
   if (arg === '--effect-sound') {
     effectSoundSrc = args[i + 1] ?? null;
+    i += 1;
+    continue;
+  }
+  if (arg.startsWith('--bgm=')) {
+    bgMusicSrc = arg.slice('--bgm='.length);
+    continue;
+  }
+  if (arg === '--bgm') {
+    bgMusicSrc = args[i + 1] ?? null;
+    i += 1;
+    continue;
+  }
+  if (arg === '--no-bgm') {
+    bgMusicSrc = null;
+    continue;
+  }
+  if (arg.startsWith('--appeal-placement=')) {
+    appealPlacement = arg.slice('--appeal-placement='.length);
+    continue;
+  }
+  if (arg === '--appeal-placement') {
+    appealPlacement = args[i + 1] ?? null;
     i += 1;
     continue;
   }
@@ -105,7 +129,13 @@ const remotionBin = path.resolve(
 
 const entryPoint = path.resolve(projectRoot, 'src', 'index.ts');
 const compositionId = process.env.MARGO_COMPOSITION_ID ?? 'SPCourtMejiro401';
-const inputProps = { userName, propertyName, effectSoundSrc: effectSoundSrc ?? undefined };
+const inputProps = {
+  userName,
+  propertyName,
+  effectSoundSrc: effectSoundSrc ?? undefined,
+  bgMusicSrc,
+  appealPlacement,
+};
 
 // Pass props via file to avoid Windows quoting issues.
 const propsPath = path.join(
@@ -147,4 +177,3 @@ if (result.error) {
   process.exit(1);
 }
 process.exit(result.status ?? 1);
-

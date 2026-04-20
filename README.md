@@ -96,6 +96,8 @@ py -3 "音声生成/generate_voiceovers_from_metadata.py" ^
 主なオプション:
 - `--profile-id <id>`: Voicebox のプロフィールを固定（未指定なら対話で選択）
 - `--qwen 0.6b` / `--qwen 1.7b`: Qwen 0.6B / 1.7B を選択（未指定なら対話で選択）
+- `--model gemini-3.1flash`: Gemini 3.1 Flash を使用
+- `--model default`: Voicebox 側のデフォルトモデルを使用
 - `--force`: 既存の音声があっても上書き生成
 
 Remotion 取り込み:

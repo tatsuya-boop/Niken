@@ -7,7 +7,7 @@ import { pickMaterial } from './material-picker.mjs';
 import { pickEffectSound } from './effect-picker.mjs';
 
 const main = async () => {
-  const picked = await pickMaterial();
+  const picked = await pickMaterial({ includeVideoOptions: true });
   if (!picked) {
     console.log('キャンセルしました。');
     process.exit(130);
@@ -32,6 +32,8 @@ const main = async () => {
     userName: picked.userName,
     propertyName: picked.propertyName,
     effectSoundSrc: pickedEffect.publicPath,
+    bgMusicSrc: picked.bgMusicSrc,
+    appealPlacement: picked.appealPlacement,
   };
 
   // Pass props via file to avoid Windows quoting issues.
@@ -59,4 +61,3 @@ main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });
-

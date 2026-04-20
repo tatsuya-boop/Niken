@@ -21,6 +21,21 @@ const listDirs = (dir) => {
     .sort((a, b) => a.localeCompare(b, 'ja'));
 };
 
+const listFiles = (dir, exts = []) => {
+  if (!fs.existsSync(dir)) return [];
+  const allowedExts = exts.map((ext) => ext.toLowerCase());
+  return fs
+    .readdirSync(dir)
+    .filter((name) => !name.startsWith('.') && !name.startsWith('._'))
+    .filter((name) => {
+      const full = path.join(dir, name);
+      if (!fs.existsSync(full) || fs.statSync(full).isDirectory()) return false;
+      if (allowedExts.length === 0) return true;
+      return allowedExts.includes(path.extname(name).toLowerCase());
+    })
+    .sort((a, b) => a.localeCompare(b, 'ja'));
+};
+
 const normalize = (s) => (s ?? '').trim();
 
 const choose = async (rl, title, items) => {
@@ -61,7 +76,10 @@ const resolveMaterialsDir = (materialsDir) => {
     : path.resolve(process.cwd(), materialsDir);
 };
 
-export const pickMaterial = async ({ materialsDir = 'public/materials' } = {}) => {
+export const pickMaterial = async ({
+  materialsDir = 'public/materials',
+  includeVideoOptions = false,
+} = {}) => {
   const root = resolveMaterialsDir(materialsDir);
 
   if (!process.stdin.isTTY) {
@@ -85,14 +103,67 @@ export const pickMaterial = async ({ materialsDir = 'public/materials' } = {}) =
     const propertyName = await choose(rl, '物件を選択（metadata.json があるもの）', properties);
     if (!propertyName) return null;
 
-    return {
+    const basePicked = {
       userName,
       propertyName,
       materialKey: `${userName}/${propertyName}`,
       metadataPath: path.join(root, userName, propertyName, 'metadata.json'),
     };
+
+    if (!includeVideoOptions) {
+      return basePicked;
+    }
+
+    const bgMusicDirCandidates = ['bgMusic', 'bgMusics'].map((name) => ({
+      full: path.join(root, name),
+      relative: `materials/${name}`,
+    }));
+    const activeBgMusicDir =
+      bgMusicDirCandidates.find((c) => fs.existsSync(c.full) && isDir(c.full)) ?? null;
+    const bgMusicFiles = activeBgMusicDir
+      ? listFiles(activeBgMusicDir.full, ['.mp3', '.wav', '.m4a'])
+      : [];
+    let bgMusicSrc = null;
+    while (true) {
+      console.log('\nBGMを選択（public/materials/bgMusic または bgMusics）');
+      console.log(' 0. なし');
+      bgMusicFiles.forEach((f, i) => {
+        console.log(`${String(i + 1).padStart(2, ' ')}. ${f}`);
+      });
+      const answer = normalize(await rl.question('番号（Enterでキャンセル）: '));
+      if (!answer) return null;
+      if (!/^\d+$/.test(answer)) {
+        console.log('番号で入力してください。');
+        continue;
+      }
+      const idx = Number(answer);
+      if (idx === 0) {
+        bgMusicSrc = null;
+        break;
+      }
+      if (idx >= 1 && idx <= bgMusicFiles.length) {
+        bgMusicSrc = `${activeBgMusicDir?.relative}/${bgMusicFiles[idx - 1]}`;
+        break;
+      }
+      console.log('無効な番号です。');
+    }
+
+    const appealPlacementChoices = [
+      '従来（1本目の後に顧客訴求 + 最後に業者訴求）',
+      'まとめる（顧客訴求 + 業者訴求をどちらも最後に配置）',
+    ];
+    const pickedAppealPlacement = await choose(
+      rl,
+      '訴求動画の配置を選択',
+      appealPlacementChoices
+    );
+    if (!pickedAppealPlacement) return null;
+    const appealPlacement = pickedAppealPlacement.startsWith('まとめる')
+      ? 'both-at-end'
+      : 'split';
+
+    return { ...basePicked, bgMusicSrc, appealPlacement };
   } finally {
     rl.close();
   }
 };
-
