@@ -3,7 +3,9 @@ import json
 import os
 import re
 import sys
+import time
 
+import gemini_tts_client
 import voicebox_client
 
 
@@ -123,7 +125,7 @@ def _choose_qwen_model_interactive() -> tuple[str | None, str | None]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="metadata.json の voiceoverText を Voicebox で音声化して同階層に保存します。"
+        description="metadata.json の voiceoverText を音声化して同階層に保存します。"
     )
     parser.add_argument(
         "metadata_json",
@@ -135,6 +137,12 @@ def main() -> int:
         "--materials-root",
         default=os.path.join("public", "materials"),
         help='materials のルート（既定: "public/materials"）',
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["voicebox", "gemini"],
+        default="voicebox",
+        help="音声生成エンジン（voicebox / gemini）",
     )
     parser.add_argument(
         "--profile-id",
@@ -155,7 +163,33 @@ def main() -> int:
         "--qwen",
         choices=["0.6b", "1.7b"],
         default=None,
-        help="Qwen のモデルサイズを指定（0.6b / 1.7b）。未指定なら対話で選択",
+        help="Qwen のモデルサイズを指定（0.6b / 1.7b）。未指定なら対話で選択（voicebox時のみ）",
+    )
+    parser.add_argument(
+        "--gemini-api-key",
+        default=os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"),
+        help="Gemini API key（未指定時は GOOGLE_API_KEY / GEMINI_API_KEY を使用）",
+    )
+    parser.add_argument(
+        "--gemini-model",
+        default=os.environ.get("GEMINI_TTS_MODEL", gemini_tts_client.DEFAULT_MODEL),
+        help="Gemini のモデルID（既定: GEMINI_TTS_MODEL または gemini-3.1-flash-tts-preview）",
+    )
+    parser.add_argument(
+        "--gemini-voice",
+        default=os.environ.get("GEMINI_TTS_VOICE", gemini_tts_client.DEFAULT_VOICE),
+        help="Gemini の voiceName（既定: GEMINI_TTS_VOICE または Autonoe）",
+    )
+    parser.add_argument(
+        "--gemini-base-url",
+        default=os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),
+        help="Gemini API base URL",
+    )
+    parser.add_argument(
+        "--gemini-request-interval-sec",
+        type=float,
+        default=float(os.environ.get("GEMINI_REQUEST_INTERVAL_SEC", "20")),
+        help="Gemini 連続リクエスト時の待機秒数（既定: 20秒）",
     )
     parser.add_argument(
         "--force",
@@ -209,28 +243,36 @@ def main() -> int:
         print("エラー: metadata.json の uploadedVideos が不正です")
         return 2
 
-    data_root = voicebox_client.detect_data_root()
-    profiles_dir = voicebox_client.detect_profiles_dir(data_root)
+    profile_id: str | None = None
+    model_id: str | None = None
+    model_size: str | None = None
+    data_root: str | None = None
 
-    profile_id = args.profile_id
-    if not profile_id:
-        profile_id = voicebox_client.choose_profile_id_interactive(
-            profiles_dir=profiles_dir,
-            data_root=data_root,
-            base_url=args.base_url,
-        )
-    if not profile_id:
-        print("エラー: profile_id を取得できませんでした")
-        return 2
+    if args.engine == "voicebox":
+        data_root = voicebox_client.detect_data_root()
+        profiles_dir = voicebox_client.detect_profiles_dir(data_root)
 
-    model_id: str | None
-    model_size: str | None
-    if args.qwen == "0.6b":
-        model_id, model_size = "qwen", "0.6B"
-    elif args.qwen == "1.7b":
-        model_id, model_size = "qwen", "1.7B"
+        profile_id = args.profile_id
+        if not profile_id:
+            profile_id = voicebox_client.choose_profile_id_interactive(
+                profiles_dir=profiles_dir,
+                data_root=data_root,
+                base_url=args.base_url,
+            )
+        if not profile_id:
+            print("エラー: profile_id を取得できませんでした")
+            return 2
+
+        if args.qwen == "0.6b":
+            model_id, model_size = "qwen", "0.6B"
+        elif args.qwen == "1.7b":
+            model_id, model_size = "qwen", "1.7B"
+        else:
+            model_id, model_size = _choose_qwen_model_interactive()
     else:
-        model_id, model_size = _choose_qwen_model_interactive()
+        if not args.gemini_api_key:
+            print("エラー: Gemini の API キーが未設定です（GOOGLE_API_KEY か GEMINI_API_KEY）。")
+            return 2
 
     targets = []
     for v in uploaded:
@@ -249,16 +291,23 @@ def main() -> int:
         return 0
 
     print(f"出力先: {out_voice_dir}")
-    print(f"profile_id: {profile_id}")
-    print(f"base_url: {args.base_url}")
-    if model_id and model_size:
-        print(f"model: {model_id} {model_size}")
+    print(f"engine: {args.engine}")
+    if args.engine == "voicebox":
+        print(f"profile_id: {profile_id}")
+        print(f"base_url: {args.base_url}")
+        if model_id and model_size:
+            print(f"model: {model_id} {model_size}")
+        else:
+            print("model: (default)")
     else:
-        print("model: (default)")
+        print(f"base_url: {args.gemini_base_url}")
+        print(f"model: {args.gemini_model}")
+        print(f"voice: {args.gemini_voice}")
 
     ok = 0
     skipped = 0
     failed = 0
+    gemini_requests_sent = 0
 
     for t in targets:
         out_name = _voiceover_filename(t["id"])
@@ -274,16 +323,31 @@ def main() -> int:
 
         print(f"🎤 生成: {out_name}")
         try:
-            voicebox_client.generate_audio(
-                text=text,
-                out_path=out_path,
-                profile_id=profile_id,
-                base_url=args.base_url,
-                data_root=data_root,
-                language="ja",
-                model_id=model_id,
-                model_size=model_size,
-            )
+            if args.engine == "voicebox":
+                voicebox_client.generate_audio(
+                    text=text,
+                    out_path=out_path,
+                    profile_id=profile_id,
+                    base_url=args.base_url,
+                    data_root=data_root,
+                    language="ja",
+                    model_id=model_id,
+                    model_size=model_size,
+                )
+            else:
+                if gemini_requests_sent > 0 and args.gemini_request_interval_sec > 0:
+                    wait_sec = args.gemini_request_interval_sec
+                    print(f"⏳ Gemini リクエスト間隔のため {wait_sec:.1f} 秒待機します...")
+                    time.sleep(wait_sec)
+                gemini_requests_sent += 1
+                gemini_tts_client.generate_audio(
+                    text=text,
+                    out_path=out_path,
+                    api_key=args.gemini_api_key,
+                    model=args.gemini_model,
+                    voice_name=args.gemini_voice,
+                    base_url=args.gemini_base_url,
+                )
             ok += 1
         except KeyboardInterrupt:
             print("\n中断しました。")

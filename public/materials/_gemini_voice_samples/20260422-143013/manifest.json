@@ -1,0 +1,44 @@
+{
+  "text": "こんにちは、こちらの物件を内見していきます。",
+  "model": "gemini-3.1-flash-tts-preview",
+  "baseUrl": "https://generativelanguage.googleapis.com",
+  "generatedAt": "2026-04-22T14:45:08.463132",
+  "voices": [
+    {
+      "index": 25,
+      "voice": "Achird",
+      "style": "Friendly",
+      "file": "25-Achird.wav"
+    },
+    {
+      "index": 26,
+      "voice": "Zubenelgenubi",
+      "style": "Casual",
+      "file": "26-Zubenelgenubi.wav"
+    },
+    {
+      "index": 27,
+      "voice": "Vindemiatrix",
+      "style": "Gentle",
+      "file": "27-Vindemiatrix.wav"
+    },
+    {
+      "index": 28,
+      "voice": "Sadachbia",
+      "style": "Lively",
+      "file": "28-Sadachbia.wav"
+    },
+    {
+      "index": 29,
+      "voice": "Sadaltager",
+      "style": "Knowledgeable",
+      "file": "29-Sadaltager.wav"
+    },
+    {
+      "index": 30,
+      "voice": "Sulafat",
+      "style": "Warm",
+      "file": "30-Sulafat.wav"
+    }
+  ]
+}

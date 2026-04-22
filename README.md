@@ -37,7 +37,7 @@ npm run dev
 エンジニア以外でも、ターミナル上で `public/materials/<user>/<property>`（`metadata.json` があるものだけ）を選んで実行できます。
 
 ```bash
-# ナレーション音声を生成（Voicebox）
+# ナレーション音声を生成（Voicebox / Gemini）
 npm run "音声生成"
 
 # 完成動画を生成して保存（metadata.json と同じ階層に 完成動画.mp4）
@@ -47,15 +47,22 @@ npm run "動画生成"
 npm run "動画確認"
 ```
 
-## Materials / Voiceover（Voicebox）
+## Materials / Voiceover（Voicebox / Gemini）
 
-`public/materials/<user>/<property>/metadata.json` の `uploadedVideos[].voiceoverText` から、Voicebox でナレーション音声を生成して素材フォルダに保存できます。
+`public/materials/<user>/<property>/metadata.json` の `uploadedVideos[].voiceoverText` から、ナレーション音声を生成して素材フォルダに保存できます。
 
 ※ いちばん簡単なのは `npm run "音声生成"` です（OSに応じて Python コマンドを自動で選びます）。
+実行時にエンジン（Voicebox / Gemini 3.1 Flash）を選択できます。
+Gemini を選んだ場合は Voicebox のプロフィール選択は行わず、そのまま生成します。
 
 前提:
-- Voicebox アプリ（API）が起動していること（既定: `http://127.0.0.1:17493`）
+- Voicebox を使う場合: Voicebox アプリ（API）が起動していること（既定: `http://127.0.0.1:17493`）
+- Gemini を使う場合: `GOOGLE_API_KEY`（または `GEMINI_API_KEY`）が設定されていること
 - Python が使えること（Mac/Linux: `python3`、Windows: `py` または `python`）
+
+Gemini 利用時に `CERTIFICATE_VERIFY_FAILED` が出る場合:
+- `.env.local` に `SSL_CERT_FILE=/path/to/cacert.pem` か `GEMINI_CA_BUNDLE=/path/to/cacert.pem` を設定
+- 一時回避のみ: `.env.local` に `GEMINI_INSECURE=1`（証明書検証を無効化）
 
 生成（プロジェクトルートで実行推奨）:
 ```bash
@@ -94,8 +101,11 @@ py -3 "音声生成/generate_voiceovers_from_metadata.py" ^
 - `public/materials/<user>/<property>/voiceovers/voiceover-<videoId>.wav`
 
 主なオプション:
+- `--engine voicebox` / `--engine gemini`: 生成エンジンを指定
 - `--profile-id <id>`: Voicebox のプロフィールを固定（未指定なら対話で選択）
 - `--qwen 0.6b` / `--qwen 1.7b`: Qwen 0.6B / 1.7B を選択（未指定なら対話で選択）
+- `--gemini-model <model-id>`: Gemini のモデルID（既定: `gemini-3.1-flash-tts-preview`）
+- `--gemini-voice <voice-name>`: Gemini の voiceName（既定: `Autonoe`）
 - `--force`: 既存の音声があっても上書き生成
 
 Remotion 取り込み:
