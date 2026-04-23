@@ -10,6 +10,7 @@ Render a completed video next to metadata.json as "完成動画.mp4".
 Usage:
   npm run render:completed -- <user>/<property>
   npm run render:completed -- public/materials/<user>/<property>/metadata.json
+  npm run render:completed -- <user>/<property> --template=MargoMain_Original
 
 Examples:
   npm run render:completed -- tanakatatsuya/SPCourtMejiro401
@@ -23,11 +24,21 @@ if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
 }
 
 let materialInput = null;
+let templateName = null;
 let effectSoundSrc = null;
 let bgMusicSrc;
 let appealPlacement;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
+  if (arg.startsWith('--template=')) {
+    templateName = arg.slice('--template='.length);
+    continue;
+  }
+  if (arg === '--template') {
+    templateName = args[i + 1] ?? null;
+    i += 1;
+    continue;
+  }
   if (arg.startsWith('--effect-sound=')) {
     effectSoundSrc = arg.slice('--effect-sound='.length);
     continue;
@@ -132,6 +143,7 @@ const compositionId = process.env.MARGO_COMPOSITION_ID ?? 'SPCourtMejiro401';
 const inputProps = {
   userName,
   propertyName,
+  templateName: templateName ?? undefined,
   effectSoundSrc: effectSoundSrc ?? undefined,
   bgMusicSrc,
   appealPlacement,

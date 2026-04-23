@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring, Sequence, Freeze } from 'remotion';
 import { z } from 'zod';
-import { NikenAppeal } from './NikenAppeal';
+import { NikenAppeal } from '../NikenAppeal';
 
 type UploadedVideo = {
   id: string;
@@ -25,7 +25,6 @@ type MetadataJson = {
 export const MargoPropsSchema = z.object({
   userName: z.string(),
   propertyName: z.string(),
-  templateName: z.string().optional(),
   effectSoundSrc: z.string().optional(),
   bgMusicSrc: z.string().nullable().optional(),
   appealPlacement: z.enum(['split', 'both-at-end']).optional(),

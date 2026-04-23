@@ -32,7 +32,8 @@
     "動画生成": "node scripts/render-select.mjs",
     "動画確認": "node scripts/dev-select.mjs",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "動画テンプレ作成": "node scripts/create-property-video.mjs"
   },
   "sideEffects": [
     "*.css"

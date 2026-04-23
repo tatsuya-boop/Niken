@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Series, AbsoluteFill, OffthreadVideo, Audio, staticFile, continueRender, delayRender, useVideoConfig, interpolate, useCurrentFrame, spring, Sequence, Freeze } from 'remotion';
+import {
+  Series,
+  AbsoluteFill,
+  OffthreadVideo,
+  Audio,
+  staticFile,
+  continueRender,
+  delayRender,
+  useVideoConfig,
+  interpolate,
+  useCurrentFrame,
+  spring,
+  Sequence,
+  Freeze,
+} from 'remotion';
 import { z } from 'zod';
-import { NikenAppeal } from './NikenAppeal';
+import { NikenAppeal } from '../NikenAppeal';
 
 type UploadedVideo = {
   id: string;
   filename: string;
   editOrder: number;
   overlayText?: string | null;
+  voiceoverText?: string | null;
 };
 
 type MetadataJson = {
@@ -25,7 +40,6 @@ type MetadataJson = {
 export const MargoPropsSchema = z.object({
   userName: z.string(),
   propertyName: z.string(),
-  templateName: z.string().optional(),
   effectSoundSrc: z.string().optional(),
   bgMusicSrc: z.string().nullable().optional(),
   appealPlacement: z.enum(['split', 'both-at-end']).optional(),
@@ -132,6 +146,7 @@ export const MargoMain: React.FC<MargoProps> = ({
                   durationInFrames={seq.durationInFrames}
                   videoDurationInFrames={seq.videoDurationInFrames}
                   isFirstScene={isFirstVideo}
+                  voiceoverText={seq.video.voiceoverText}
                 />
               </Series.Sequence>
             );
@@ -153,102 +168,168 @@ export const MargoMain: React.FC<MargoProps> = ({
   );
 };
 
-const Scene: React.FC<{ video: UploadedVideo; materialBase: string; propertyLabel: string; durationInFrames: number; videoDurationInFrames: number; isFirstScene: boolean }> = ({ video, materialBase, propertyLabel, durationInFrames, videoDurationInFrames, isFirstScene }) => {
+const Scene: React.FC<{ 
+  video: UploadedVideo; 
+  materialBase: string; 
+  propertyLabel: string; 
+  durationInFrames: number; 
+  videoDurationInFrames: number; 
+  isFirstScene: boolean;
+  voiceoverText?: string | null;
+}> = ({ video, materialBase, propertyLabel, durationInFrames, videoDurationInFrames, isFirstScene, voiceoverText }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const lastVideoFrame = Math.max(0, videoDurationInFrames - 1);
   const videoSrc = staticFile(`${materialBase}/${video.filename}`);
 
+  // --- タイピング & 消去ロジック ---
+  const typingSpeed = 7; // 1秒あたりの文字数
+  const pauseFrames = fps * 1.0; // 文末で表示を維持する時間（1秒後に消える）
+
+  const { currentDisplayText, shouldShowText, showCursorAtThisFrame } = useMemo(() => {
+    if (!voiceoverText) return { currentDisplayText: '', shouldShowText: false, showCursorAtThisFrame: false };
+
+    // 句読点で分割
+    const sentences = voiceoverText.split(/([。！？!?])/g).reduce((acc: string[], cur, i) => {
+      if (i % 2 === 0) acc.push(cur);
+      else acc[acc.length - 1] += cur;
+      return acc;
+    }, []).filter(s => s.trim() !== '');
+
+    let elapsedFrames = 0;
+    let targetSentence = "";
+    let relativeChars = 0;
+    let isVisible = false;
+    let isTyping = false;
+
+    for (const sentence of sentences) {
+      const typingFrames = Math.ceil((sentence.length / typingSpeed) * fps);
+      const totalSentenceFrames = typingFrames + pauseFrames;
+
+      if (frame < elapsedFrames + totalSentenceFrames) {
+        const framesInThisSentence = frame - elapsedFrames;
+        targetSentence = sentence;
+        
+        if (framesInThisSentence < typingFrames) {
+          // タイピング中
+          relativeChars = Math.floor((framesInThisSentence / typingFrames) * sentence.length);
+          isVisible = true;
+          isTyping = true;
+        } else {
+          // ポーズ中（文末まで表示）
+          relativeChars = sentence.length;
+          isVisible = true;
+          isTyping = false;
+        }
+        break;
+      }
+      // totalSentenceFramesを過ぎたらisVisible=falseのまま次のループへ（＝消える）
+      elapsedFrames += totalSentenceFrames;
+    }
+
+    return {
+      currentDisplayText: targetSentence.substring(0, relativeChars),
+      shouldShowText: isVisible,
+      showCursorAtThisFrame: isTyping
+    };
+  }, [voiceoverText, frame, fps]);
+
+  const isCursorBlinking = Math.floor(frame / (fps / 4)) % 2 === 0;
+
   return (
     <AbsoluteFill>
-      <OffthreadVideo src={videoSrc} muted trimAfter={Math.max(1, videoDurationInFrames)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      {durationInFrames > videoDurationInFrames && (
-        <Sequence from={videoDurationInFrames} durationInFrames={durationInFrames - videoDurationInFrames}>
-          <Freeze frame={lastVideoFrame}><OffthreadVideo src={videoSrc} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></Freeze>
-        </Sequence>
+      {/* ビデオ表示 */}
+      {frame < videoDurationInFrames ? (
+        <OffthreadVideo src={videoSrc} muted trimAfter={Math.max(1, videoDurationInFrames)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <Freeze frame={lastVideoFrame}>
+          <OffthreadVideo src={videoSrc} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </Freeze>
       )}
+
+      {/* タイピングテキスト表示 (位置を下げて配置) */}
+      {shouldShowText && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end', // 下揃えに変更
+          paddingBottom: '300px', // 物件情報より上に配置するためのマージン
+          paddingLeft: '10%',
+          paddingRight: '10%',
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          <div style={{ 
+            color: 'white',
+            fontSize: 56, 
+            fontFamily: 'monospace',
+            lineHeight: '1.4',
+            textAlign: 'center',
+            whiteSpace: 'pre-wrap',
+            textShadow: '0 4px 25px rgba(0,0,0,1)',
+          }}>
+            {currentDisplayText}
+            <span style={{ 
+              display: 'inline-block', 
+              width: '18px', 
+              height: '56px', 
+              backgroundColor: 'white',
+              marginLeft: '10px',
+              verticalAlign: 'middle',
+              opacity: (showCursorAtThisFrame && isCursorBlinking) ? 1 : 0 
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* 物件情報ラベル */}
+      <div style={{ 
+        position: 'absolute', 
+        bottom: 100, 
+        left: '50%', 
+        transform: 'translateX(-50%)', 
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+        backdropFilter: 'blur(10px)', 
+        padding: '15px 40px', 
+        borderRadius: '10px', 
+        color: 'white', 
+        fontSize: 40, 
+        whiteSpace: 'pre-line', 
+        textAlign: 'center',
+        zIndex: 12
+      }}>
+        {propertyLabel}
+      </div>
+
+      {/* 既存の overlayText (タイトルアニメーション) */}
       {video.overlayText && (
-        <div style={{ position: 'absolute', top: isFirstScene ? 400 : 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'absolute', top: isFirstScene ? 400 : 150, width: '100%', textAlign: 'center', display: 'flex', justifyContent: 'center', padding: '0 50px', flexWrap: 'wrap', zIndex: 11 }}>
           {isFirstScene ? (
             (() => {
               const spr = spring({ frame, fps, config: { stiffness: 180, damping: 12, mass: 1.2 } });
               const scale = interpolate(spr, [0, 1], [0.3, 1]);
               const opacity = interpolate(spr, [0, 0.4], [0, 1]);
-
-              const commonStyle: React.CSSProperties = {
-                fontSize: 140,
-                fontWeight: 900,
-                lineHeight: 1.1,
-                whiteSpace: 'pre-line',
-                position: 'absolute',
-                width: '100%',
-                left: 0,
-                top: 0,
-                opacity,
-                transform: `scale(${scale})`,
-              };
-
+              const commonStyle: React.CSSProperties = { fontSize: 140, fontWeight: 900, lineHeight: 1.1, whiteSpace: 'pre-line', position: 'absolute', width: '100%', left: 0, top: 0, opacity, transform: `scale(${scale})` };
               return (
                 <div style={{ position: 'relative', width: '100%', height: 300 }}>
-                  {/* レイヤー1: 強い影と縁取り */}
-                  <div style={{
-                    ...commonStyle,
-                    color: 'black',
-                    WebkitTextStroke: '12px black',
-                    textShadow: '0 15px 30px rgba(0,0,0,0.8)',
-                    zIndex: 1,
-                  }}>
-                    {video.overlayText.toUpperCase()}
-                  </div>
-                  {/* レイヤー2: 白い光（グロー） */}
-                  <div style={{
-                    ...commonStyle,
-                    color: 'white',
-                    filter: 'blur(12px)',
-                    zIndex: 2,
-                  }}>
-                    {video.overlayText.toUpperCase()}
-                  </div>
-                  {/* レイヤー3: 金色グラデーション本体 */}
-                  <div style={{
-                    ...commonStyle,
-                    background: 'linear-gradient(to bottom, #fff6af 0%, #ffdf7e 40%, #c49a3f 100%)',
-                    WebkitBackgroundClip: 'text',
-                    backgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    zIndex: 3,
-                  }}>
-                    {video.overlayText.toUpperCase()}
-                  </div>
+                  <div style={{ ...commonStyle, color: 'black', WebkitTextStroke: '12px black', textShadow: '0 15px 30px rgba(0,0,0,0.8)', zIndex: 1 }}>{video.overlayText.toUpperCase()}</div>
+                  <div style={{ ...commonStyle, color: 'white', filter: 'blur(12px)', zIndex: 2 }}>{video.overlayText.toUpperCase()}</div>
+                  <div style={{ ...commonStyle, background: 'linear-gradient(to bottom, #fff6af 0%, #ffdf7e 40%, #c49a3f 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', zIndex: 3 }}>{video.overlayText.toUpperCase()}</div>
                 </div>
               );
             })()
           ) : (
             video.overlayText.toUpperCase().split('').map((char, i) => {
               const spr = spring({ frame, fps, config: { stiffness: 100, damping: 15 }, delay: i * 2 });
-              const commonCharStyle: React.CSSProperties = {
-                color: 'white',
-                fontSize: 100,
-                fontWeight: 900,
-                display: 'inline-block',
-                opacity: spr,
-                transform: `translateY(${interpolate(spr, [0, 1], [50, 0])}px)`,
-              };
-
-              if (char === '\n') {
-                return <div key={i} style={{ width: '100%', height: 0 }} />;
-              }
-
-              return (
-                <span key={i} style={commonCharStyle}>
-                  {char === ' ' ? '\u00A0' : char}
-                </span>
-              );
+              const commonCharStyle: React.CSSProperties = { color: 'white', fontSize: 100, fontWeight: 900, display: 'inline-block', opacity: spr, transform: `translateY(${interpolate(spr, [0, 1], [50, 0])}px)` };
+              if (char === '\n') return <div key={i} style={{ width: '100%', height: 0 }} />;
+              return <span key={i} style={commonCharStyle}>{char === ' ' ? '\u00A0' : char}</span>;
             })
           )}
         </div>
       )}
-      <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)', padding: '15px 40px', borderRadius: '10px', color: 'white', fontSize: 40, whiteSpace: 'pre-line', textAlign: 'center' }}>{propertyLabel}</div>
     </AbsoluteFill>
   );
 };

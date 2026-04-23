@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pickMaterial } from './material-picker.mjs';
 import { pickEffectSound } from './effect-picker.mjs';
+import { pickTemplate } from './template-picker.mjs';
 
 const main = async () => {
   const picked = await pickMaterial({ includeVideoOptions: true });
@@ -14,6 +15,12 @@ const main = async () => {
   }
 
   console.log(`\n選択: ${picked.materialKey}`);
+  const pickedTemplate = await pickTemplate();
+  if (!pickedTemplate) {
+    console.log('キャンセルしました。');
+    process.exit(130);
+  }
+  console.log(`テンプレート: ${pickedTemplate.templateName}`);
   const pickedEffect = await pickEffectSound();
   if (!pickedEffect) {
     console.log('キャンセルしました。');
@@ -31,6 +38,7 @@ const main = async () => {
   const inputProps = {
     userName: picked.userName,
     propertyName: picked.propertyName,
+    templateName: pickedTemplate.templateName,
     effectSoundSrc: pickedEffect.publicPath,
     bgMusicSrc: picked.bgMusicSrc,
     appealPlacement: picked.appealPlacement,

@@ -1,6 +1,7 @@
 import {getAudioData, getVideoMetadata} from '@remotion/media-utils';
 import {type CalculateMetadataFunction, Composition, staticFile} from 'remotion';
-import {MargoMain, type MargoProps, MargoPropsSchema} from './MargoMain';
+import {type MargoProps, MargoPropsSchema} from './MargoMain';
+import {resolveVideoTemplateComponent} from './propertyVideoRegistry';
 
 const FPS = 30;
 
@@ -161,11 +162,16 @@ const calculateMetadata: CalculateMetadataFunction<MargoProps> = async ({
   };
 };
 
+const PropertyVideoComposition: React.FC<MargoProps> = (props) => {
+  const Component = resolveVideoTemplateComponent(props.templateName);
+  return <Component {...props} />;
+};
+
 export const RemotionRoot: React.FC = () => {
   return (
     <Composition
       id="SPCourtMejiro401"
-      component={MargoMain}
+      component={PropertyVideoComposition}
       durationInFrames={1}
       calculateMetadata={calculateMetadata}
       fps={FPS}

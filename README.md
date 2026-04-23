@@ -43,7 +43,7 @@ npm run "音声生成"
 # 完成動画を生成して保存（metadata.json と同じ階層に 完成動画.mp4）
 npm run "動画生成"
 
-# Remotion Studio を起動して確認（userName / propertyName を自動注入）
+# Remotion Studio を起動して確認（素材選択 + テンプレート選択）
 npm run "動画確認"
 ```
 
@@ -146,6 +146,37 @@ Remotion Studio で Composition `SPCourtMejiro401` を開き、Props に `userNa
 
 3) 書き出して保存  
 上の「Render video」のコマンドで、`metadata.json` と同じ階層に `完成動画.mp4` が生成されます。
+
+## 物件ごとに MargoMain.tsx をコピーして編集する
+
+共通の `src/MargoMain.tsx` とは別に、物件専用の TSX を作って個別編集できます。  
+配置ルール:
+
+- `src/編集指示/MargoMain_<propertyName>.tsx`
+
+作成例:
+
+```bash
+mkdir -p "src/編集指示"
+cp src/MargoMain.tsx "src/編集指示/MargoMain_SPCourtMejiro401.tsx"
+```
+
+`src/propertyVideoRegistry.ts` が `src/編集指示` を自動スキャンするため、手動登録は不要です。
+
+`npm run "動画確認"` / `npm run "動画生成"` 実行時に、`src/編集指示` 直下の TSX から使用テンプレートを選択できます。
+
+自動作成:
+
+```bash
+# 対話選択で作成
+npm run "動画テンプレ作成"
+
+# 直接指定で作成
+npm run "動画テンプレ作成" -- tanakatatsuya/SPCourtMejiro401
+
+# 既存ファイルを上書きして再作成
+npm run "動画テンプレ作成" -- tanakatatsuya/SPCourtMejiro401 --force
+```
 
 **Upgrade Remotion**
 
