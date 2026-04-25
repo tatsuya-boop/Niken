@@ -75,10 +75,9 @@ export const MargoMain: React.FC<MargoProps> = ({
   const metadataBgmPath = data ? `materials/bgMusics/${data.property.bgMusic.title}.mp3` : null;
   const resolvedBgmSrc = bgMusicSrc ?? metadataBgmPath;
   const bgmPath = bgMusicSrc === null || !resolvedBgmSrc ? null : staticFile(resolvedBgmSrc);
-  const propertyTitle = data?.property.name ?? '';
   const propertyNumberRaw = data?.property.number ?? data?.property.propertyNumber ?? data?.property.propertyNo ?? data?.property.code;
   const propertyNumber = propertyNumberRaw == null ? '' : String(propertyNumberRaw).trim().padStart(4, '0');
-  const propertyLabel = propertyNumber ? `${propertyTitle}\n物件番号:${propertyNumber}` : propertyTitle;
+  const propertyLabel = propertyNumber ? `物件番号:${propertyNumber}` : '';
 
   const sequences = useMemo(() => {
     const items: Array<{ type: 'video'; id: string; durationInFrames: number; videoDurationInFrames: number; video: UploadedVideo } | { type: 'appeal'; id: 'customer' | 'vendor'; durationInFrames: number }> = [];
